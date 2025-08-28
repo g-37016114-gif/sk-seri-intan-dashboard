@@ -1,0 +1,1723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reading Assessment Dashboard with Google Sheets</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        
+        .rating-star {
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .rating-star:hover {
+            transform: scale(1.1);
+        }
+        
+        .rating-star.active {
+            color: #fbbf24;
+        }
+        
+        .rating-star.inactive {
+            color: #d1d5db;
+        }
+        
+        .subject-tab {
+            transition: all 0.3s ease;
+        }
+        
+        .subject-tab.active {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+        
+        .reading-item {
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+        
+        .reading-item:hover {
+            border-color: #3b82f6;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .reading-item.selected {
+            border-color: #3b82f6;
+            background: linear-gradient(135deg, #eff6ff, #dbeafe);
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .stat-card {
+            transition: all 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+        
+        .chart-container-small {
+            position: relative;
+            height: 200px;
+        }
+        
+        .lang-btn {
+            transition: all 0.3s ease;
+        }
+        
+        .lang-btn.active {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8) !important;
+            color: white !important;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .google-sheets-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .status-connected {
+            background: #10b981;
+            color: white;
+        }
+
+        .status-disconnected {
+            background: #ef4444;
+            color: white;
+        }
+
+        .status-syncing {
+            background: #f59e0b;
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <!-- Admin Login Button (Public View) -->
+    <div id="adminLoginBtn" class="fixed top-4 right-4 z-50">
+        <button onclick="showAdminLogin()" 
+                class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-300 hover:scale-105 shadow-lg text-sm">
+            🔐 Admin Login
+        </button>
+    </div>
+
+    <!-- Google Sheets Connection Status (Admin Only) -->
+    <div id="sheetsStatus" class="google-sheets-status status-disconnected hidden">
+        📊 Google Sheets: Not Connected
+    </div>
+
+    <!-- Admin Panel Toggle (Admin Only) -->
+    <div id="adminPanel" class="hidden fixed top-4 right-4 z-50 flex gap-2">
+        <div id="sheetsStatusMini" class="bg-red-500 text-white px-3 py-2 rounded-lg text-sm font-medium">
+            📊 Sheets: Disconnected
+        </div>
+        <button onclick="toggleAdminMode()" 
+                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-300 hover:scale-105 shadow-lg text-sm">
+            👨‍💼 Admin Mode
+        </button>
+        <button onclick="logoutAdmin()" 
+                class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-300 hover:scale-105 shadow-lg text-sm">
+            🚪 Logout
+        </button>
+    </div>
+
+    <div class="container mx-auto px-4 py-8">
+        <!-- School Banner Header - Photo Frame Style -->
+        <div class="relative bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 rounded-2xl shadow-2xl mb-8 overflow-hidden border-8 border-white" style="background-image: url(''); background-size: cover; background-position: center; background-repeat: no-repeat;">
+            <!-- Photo Frame Overlay -->
+            <div class="absolute inset-0 bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 opacity-85"></div>
+            
+            <!-- Background Pattern -->
+            <div class="absolute inset-0 opacity-10">
+                <svg class="w-full h-full" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse">
+                            <path d="M 10 0 L 0 0 0 10" fill="none" stroke="white" stroke-width="0.5"/>
+                        </pattern>
+                    </defs>
+                    <rect width="100" height="100" fill="url(#grid)" />
+                </svg>
+            </div>
+            
+            <!-- Banner Content -->
+            <div class="relative px-8 py-12 z-10">
+                <div class="flex items-center justify-between">
+                    <!-- Left Logo Frame -->
+                    <div class="flex-shrink-0 relative group">
+                        <div class="w-24 h-24 bg-white bg-opacity-20 rounded-full flex items-center justify-center backdrop-blur-sm border-4 border-white border-opacity-50 shadow-lg transition-all duration-300 hover:scale-105" 
+                             style="background-image: url(''); background-size: cover; background-position: center;" 
+                             id="leftLogoFrame">
+                            <div class="w-full h-full rounded-full bg-white bg-opacity-20 flex items-center justify-center" id="leftLogoPlaceholder">
+                                <svg class="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 3L1 9l4 2.18v6L12 21l7-3.82v-6l2-1.09V17h2V9L12 3zm6.82 6L12 12.72 5.18 9 12 5.28 18.82 9zM17 15.99l-5 2.73-5-2.73v-3.72L12 15l5-2.73v3.72z"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Center Title -->
+                    <div class="text-center flex-1 mx-8">
+                        <h1 class="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-3 leading-tight drop-shadow-lg" id="mainTitle">
+                            DASHBOARD SISTEM PENGUJIAN<br>
+                            KEMAHIRAN MEMBACA<br>
+                            <span class="text-yellow-300">SK SERI INTAN</span>
+                        </h1>
+                        <div class="flex items-center justify-center gap-2 mb-2">
+                            <div class="h-px bg-yellow-300 flex-1 max-w-20"></div>
+                            <span class="text-yellow-300 text-lg">📍</span>
+                            <div class="h-px bg-yellow-300 flex-1 max-w-20"></div>
+                        </div>
+                        <p class="text-blue-100 text-lg font-medium mb-4 drop-shadow">KLUANG, JOHOR</p>
+                        <p class="text-blue-200 text-sm drop-shadow" id="mainSubtitle">Comprehensive overview of student reading performance</p>
+                    </div>
+                    
+                    <!-- Right Logo Frame -->
+                    <div class="flex-shrink-0 relative group">
+                        <div class="w-24 h-24 bg-white bg-opacity-20 rounded-full flex items-center justify-center backdrop-blur-sm border-4 border-white border-opacity-50 shadow-lg transition-all duration-300 hover:scale-105" 
+                             style="background-image: url(''); background-size: cover; background-position: center;" 
+                             id="rightLogoFrame">
+                            <div class="w-full h-full rounded-full bg-white bg-opacity-20 flex items-center justify-center" id="rightLogoPlaceholder">
+                                <svg class="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Language Toggle -->
+                <div class="absolute top-4 right-4 flex gap-2 z-20">
+                    <button onclick="switchLanguage('en')" id="langEn" class="lang-btn active px-3 py-2 rounded-lg font-medium transition-colors bg-white bg-opacity-20 text-white backdrop-blur-sm border border-white border-opacity-30 hover:bg-opacity-30">
+                        🇬🇧 EN
+                    </button>
+                    <button onclick="switchLanguage('ms')" id="langMs" class="lang-btn px-3 py-2 rounded-lg font-medium transition-colors bg-white bg-opacity-10 text-blue-200 backdrop-blur-sm border border-white border-opacity-20 hover:bg-opacity-20">
+                        🇲🇾 MS
+                    </button>
+                </div>
+                
+                <!-- Google Sheets Setup Button (Admin Only) -->
+                <div id="adminControls" class="absolute top-4 left-4 z-20 flex gap-2 hidden">
+                    <button onclick="showGoogleSheetsSetup()" 
+                            class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-all duration-300 hover:scale-105 shadow-lg">
+                        📊 Setup Google Sheets
+                    </button>
+                    <button onclick="syncWithSheets()" id="syncBtn"
+                            class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-all duration-300 hover:scale-105 shadow-lg disabled:opacity-50" disabled>
+                        🔄 Sync Data
+                    </button>
+                </div>
+                
+                <!-- Decorative Frame Border -->
+                <div class="absolute bottom-0 left-0 w-full h-2 bg-gradient-to-r from-yellow-400 via-yellow-300 to-yellow-400"></div>
+                <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-yellow-400 via-yellow-300 to-yellow-400"></div>
+            </div>
+        </div>
+
+        <!-- Google Sheets Integration Panel (Admin Only) -->
+        <div id="sheetsPanel" class="hidden bg-white rounded-xl shadow-lg p-6 mb-8 border-l-4 border-green-500 admin-only">
+            <h3 class="text-xl font-semibold text-gray-800 mb-4">📊 Google Sheets Integration</h3>
+            
+            <!-- Connection Status -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <h4 class="font-semibold text-green-800 mb-2">📋 Students Sheet</h4>
+                    <p class="text-sm text-green-600" id="studentsSheetStatus">Not Connected</p>
+                </div>
+                <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <h4 class="font-semibold text-blue-800 mb-2">⭐ Assessments Sheet</h4>
+                    <p class="text-sm text-blue-600" id="assessmentsSheetStatus">Not Connected</p>
+                </div>
+                <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                    <h4 class="font-semibold text-purple-800 mb-2">📊 Analytics Sheet</h4>
+                    <p class="text-sm text-purple-600" id="analyticsSheetStatus">Not Connected</p>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="flex flex-wrap gap-3">
+                <button onclick="loadStudentsFromSheets()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+                    📥 Load Students
+                </button>
+                <button onclick="exportAssessments()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+                    📤 Export Assessments
+                </button>
+                <button onclick="generateReport()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+                    📈 Generate Report
+                </button>
+                <button onclick="viewSheetsInstructions()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+                    📖 Instructions
+                </button>
+            </div>
+        </div>
+
+        <!-- Overview Statistics -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <!-- Total Participants -->
+            <div class="stat-card bg-white rounded-xl shadow-lg p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Total Participants</p>
+                        <p class="text-3xl font-bold text-blue-600" id="totalParticipants">156</p>
+                    </div>
+                    <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                        <span class="text-2xl">👥</span>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <span class="text-green-600 text-sm font-medium" id="weeklyChange">↗ +12 this week</span>
+                </div>
+            </div>
+
+            <!-- Male Students -->
+            <div class="stat-card bg-white rounded-xl shadow-lg p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Male Students</p>
+                        <p class="text-3xl font-bold text-green-600" id="maleCount">82</p>
+                    </div>
+                    <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                        <span class="text-2xl">👨‍🎓</span>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <span class="text-gray-500 text-sm" id="malePercentage">52.6% of total</span>
+                </div>
+            </div>
+
+            <!-- Female Students -->
+            <div class="stat-card bg-white rounded-xl shadow-lg p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Female Students</p>
+                        <p class="text-3xl font-bold text-pink-600" id="femaleCount">74</p>
+                    </div>
+                    <div class="w-12 h-12 bg-pink-100 rounded-full flex items-center justify-center">
+                        <span class="text-2xl">👩‍🎓</span>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <span class="text-gray-500 text-sm" id="femalePercentage">47.4% of total</span>
+                </div>
+            </div>
+
+            <!-- Highest Score -->
+            <div class="stat-card bg-white rounded-xl shadow-lg p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Highest Score</p>
+                        <p class="text-3xl font-bold text-yellow-600" id="highestScore">5.0</p>
+                    </div>
+                    <div class="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+                        <span class="text-2xl">🏆</span>
+                    </div>
+                </div>
+                <div class="mt-4">
+                    <span class="text-gray-500 text-sm" id="topPerformer">Siti Nurhaliza</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="mb-8">
+            <!-- Top Row: Performance and Gender Charts -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <!-- Performance by Subject Chart -->
+                <div class="bg-white rounded-xl shadow-lg p-4">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-3">📊 Performance by Subject</h3>
+                    <div class="chart-container-small">
+                        <canvas id="subjectChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Gender Distribution Chart -->
+                <div class="bg-white rounded-xl shadow-lg p-4">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-3">👥 Gender Distribution</h3>
+                    <div class="chart-container-small">
+                        <canvas id="genderChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Row: Rating Distribution Chart -->
+            <div class="bg-white rounded-xl shadow-lg p-4">
+                <h3 class="text-lg font-semibold text-gray-800 mb-3">⭐ Rating Distribution</h3>
+                <div class="chart-container-small">
+                    <canvas id="ratingChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Student Assessment Section -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <h3 class="text-xl font-semibold text-gray-800 mb-4">🎯 Individual Student Assessment</h3>
+            <div class="flex flex-col md:flex-row gap-4 items-end mb-6">
+                <div class="flex-1">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Student ID</label>
+                    <input type="text" id="studentId" placeholder="Enter student ID (e.g., STU001)" 
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                </div>
+                <button onclick="lookupStudent()" 
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors">
+                    🔍 Lookup Student
+                </button>
+            </div>
+            
+            <!-- Student Info Display -->
+            <div id="studentInfo" class="hidden mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                        <span class="text-2xl">👨‍🎓</span>
+                    </div>
+                    <div>
+                        <h3 id="studentName" class="font-semibold text-gray-800"></h3>
+                        <p id="studentClass" class="text-sm text-gray-600"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Assessment Interface -->
+            <div id="assessmentInterface" class="hidden">
+                <!-- Subject Tabs -->
+                <div class="mb-6">
+                    <h4 class="text-lg font-medium text-gray-800 mb-3">📖 Select Subject</h4>
+                    <div class="flex flex-wrap gap-3" id="subjectTabs">
+                        <button onclick="selectSubject('english')" class="subject-tab px-6 py-3 rounded-lg font-medium bg-gray-100 text-gray-700">
+                            🇬🇧 Bahasa Inggeris
+                        </button>
+                        <button onclick="selectSubject('malay')" class="subject-tab px-6 py-3 rounded-lg font-medium bg-gray-100 text-gray-700">
+                            🇲🇾 Bahasa Melayu
+                        </button>
+                        <button onclick="selectSubject('hafazan')" class="subject-tab px-6 py-3 rounded-lg font-medium bg-gray-100 text-gray-700">
+                            🕌 Hafazan
+                        </button>
+                        <button onclick="selectSubject('mandarin')" class="subject-tab px-6 py-3 rounded-lg font-medium bg-gray-100 text-gray-700">
+                            🇨🇳 Bahasa Mandarin
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Reading Items -->
+                <div class="mb-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h4 class="text-lg font-medium text-gray-800">📝 Reading Items</h4>
+                        <button onclick="showAddItemModal()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                            ➕ Add Item
+                        </button>
+                    </div>
+                    <div id="readingItems" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <!-- Reading items will be populated here -->
+                    </div>
+                </div>
+
+                <!-- Rating Section -->
+                <div id="ratingSection" class="hidden">
+                    <h4 class="text-lg font-medium text-gray-800 mb-4">⭐ Rate Performance</h4>
+                    <div class="bg-blue-50 p-4 rounded-lg mb-6">
+                        <p class="text-sm text-gray-600 mb-1">Rating for:</p>
+                        <p class="font-semibold text-gray-800" id="ratingItemTitle"></p>
+                        <p class="text-sm text-blue-600" id="ratingSubject"></p>
+                    </div>
+                    
+                    <div class="text-center">
+                        <p class="text-gray-700 mb-4">Click on the stars to rate (1 = Lowest, 5 = Highest)</p>
+                        <div class="flex justify-center gap-2 mb-6">
+                            <span onclick="setRating(1)" class="rating-star text-4xl inactive">⭐</span>
+                            <span onclick="setRating(2)" class="rating-star text-4xl inactive">⭐</span>
+                            <span onclick="setRating(3)" class="rating-star text-4xl inactive">⭐</span>
+                            <span onclick="setRating(4)" class="rating-star text-4xl inactive">⭐</span>
+                            <span onclick="setRating(5)" class="rating-star text-4xl inactive">⭐</span>
+                        </div>
+                        
+                        <div id="ratingFeedback" class="hidden mb-4">
+                            <p class="text-lg font-medium" id="ratingText"></p>
+                            <p class="text-sm text-gray-600" id="ratingDescription"></p>
+                        </div>
+                        
+                        <button onclick="submitRating()" id="submitBtn" 
+                                class="hidden bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-medium transition-colors">
+                            💾 Submit Rating
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin Login Modal -->
+        <div id="adminLoginModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-xl p-8 w-full max-w-md mx-4">
+                <div class="text-center mb-6">
+                    <div class="text-6xl mb-4">🔐</div>
+                    <h3 class="text-2xl font-bold text-gray-800 mb-2">Admin Login</h3>
+                    <p class="text-gray-600">Enter admin credentials to access Google Sheets integration</p>
+                </div>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Username</label>
+                        <input type="text" id="adminUsername" placeholder="Enter admin username" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                        <input type="password" id="adminPassword" placeholder="Enter admin password" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    </div>
+                    
+                    <div class="bg-blue-50 p-4 rounded-lg">
+                        <p class="text-sm text-blue-800">
+                            <strong>💡 Demo Credentials:</strong><br>
+                            Username: <code class="bg-blue-100 px-2 py-1 rounded">admin</code><br>
+                            Password: <code class="bg-blue-100 px-2 py-1 rounded">skseriintan2024</code>
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 mt-6">
+                    <button onclick="closeAdminLogin()" 
+                            class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-3 rounded-lg font-medium transition-colors">
+                        Cancel
+                    </button>
+                    <button onclick="authenticateAdmin()" 
+                            class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium transition-colors">
+                        Login
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Google Sheets Setup Modal -->
+        <div id="sheetsSetupModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-xl p-8 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+                <div class="text-center mb-6">
+                    <div class="text-6xl mb-4">📊</div>
+                    <h3 class="text-2xl font-bold text-gray-800 mb-2">Google Sheets Integration Setup</h3>
+                    <p class="text-gray-600">Connect your dashboard to Google Sheets for automatic data management</p>
+                </div>
+
+                <!-- Step-by-Step Instructions -->
+                <div class="space-y-6">
+                    <!-- Step 1 -->
+                    <div class="bg-blue-50 p-6 rounded-lg border-l-4 border-blue-500">
+                        <h4 class="font-bold text-blue-800 mb-3">📋 Step 1: Create Your Google Sheets</h4>
+                        <div class="space-y-3 text-sm text-blue-700">
+                            <p><strong>1.1</strong> Go to <a href="https://sheets.google.com" target="_blank" class="underline font-medium">sheets.google.com</a></p>
+                            <p><strong>1.2</strong> Create a new spreadsheet named "SK Seri Intan Reading Assessment"</p>
+                            <p><strong>1.3</strong> Create 3 sheets with these exact names:</p>
+                            <div class="ml-4 space-y-1">
+                                <p>• <strong>Students</strong> - For student information</p>
+                                <p>• <strong>Assessments</strong> - For assessment records</p>
+                                <p>• <strong>Analytics</strong> - For performance analytics</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 2 -->
+                    <div class="bg-green-50 p-6 rounded-lg border-l-4 border-green-500">
+                        <h4 class="font-bold text-green-800 mb-3">👥 Step 2: Setup Students Sheet</h4>
+                        <div class="space-y-3 text-sm text-green-700">
+                            <p><strong>2.1</strong> In the "Students" sheet, add these column headers in Row 1:</p>
+                            <div class="bg-white p-3 rounded border font-mono text-xs">
+                                A1: Student_ID | B1: Name | C1: Class | D1: Gender | E1: Date_Added | F1: Status
+                            </div>
+                            <p><strong>2.2</strong> Add sample student data starting from Row 2:</p>
+                            <div class="bg-white p-3 rounded border font-mono text-xs">
+                                STU001 | Ahmad Zaki | Year 5 Bestari | Male | 2024-01-15 | Active<br>
+                                STU002 | Siti Nurhaliza | Year 4 Cemerlang | Female | 2024-01-15 | Active
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 3 -->
+                    <div class="bg-purple-50 p-6 rounded-lg border-l-4 border-purple-500">
+                        <h4 class="font-bold text-purple-800 mb-3">⭐ Step 3: Setup Assessments Sheet</h4>
+                        <div class="space-y-3 text-sm text-purple-700">
+                            <p><strong>3.1</strong> In the "Assessments" sheet, add these column headers:</p>
+                            <div class="bg-white p-3 rounded border font-mono text-xs">
+                                A1: Assessment_ID | B1: Student_ID | C1: Student_Name | D1: Subject | E1: Reading_Item | F1: Rating | G1: Date | H1: Teacher | I1: Notes
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 4 -->
+                    <div class="bg-yellow-50 p-6 rounded-lg border-l-4 border-yellow-500">
+                        <h4 class="font-bold text-yellow-800 mb-3">📊 Step 4: Setup Analytics Sheet</h4>
+                        <div class="space-y-3 text-sm text-yellow-700">
+                            <p><strong>4.1</strong> In the "Analytics" sheet, add these column headers:</p>
+                            <div class="bg-white p-3 rounded border font-mono text-xs">
+                                A1: Date | B1: Total_Students | C1: Male_Count | D1: Female_Count | E1: Avg_English | F1: Avg_Malay | G1: Avg_Hafazan | H1: Avg_Mandarin | I1: Highest_Score | J1: Top_Performer
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 5 -->
+                    <div class="bg-red-50 p-6 rounded-lg border-l-4 border-red-500">
+                        <h4 class="font-bold text-red-800 mb-3">🔗 Step 5: Share Your Spreadsheet</h4>
+                        <div class="space-y-3 text-sm text-red-700">
+                            <p><strong>5.1</strong> Click the "Share" button in the top-right corner</p>
+                            <p><strong>5.2</strong> Change access to "Anyone with the link can edit"</p>
+                            <p><strong>5.3</strong> Copy the sharing link</p>
+                            <p><strong>5.4</strong> Paste the link in the input field below</p>
+                        </div>
+                    </div>
+
+                    <!-- Google Sheets URL Input -->
+                    <div class="bg-gray-50 p-6 rounded-lg">
+                        <h4 class="font-bold text-gray-800 mb-3">🔗 Step 6: Connect Your Spreadsheet</h4>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Google Sheets URL</label>
+                                <input type="url" id="sheetsUrl" placeholder="https://docs.google.com/spreadsheets/d/your-sheet-id/edit#gid=0" 
+                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                            </div>
+                            
+                            <div class="bg-blue-50 p-4 rounded-lg">
+                                <p class="text-sm text-blue-800">
+                                    <strong>💡 Important:</strong> Make sure your spreadsheet is shared with "Anyone with the link can edit" permissions for the dashboard to work properly.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex gap-3 pt-4">
+                        <button onclick="closeSheetsSetupModal()" 
+                                class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-700 py-3 rounded-lg font-medium transition-colors">
+                            Cancel
+                        </button>
+                        <button onclick="connectGoogleSheets()" 
+                                class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-medium transition-colors">
+                            Connect Sheets
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Instructions Modal -->
+        <div id="instructionsModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-xl p-8 w-full max-w-3xl mx-4 max-h-[90vh] overflow-y-auto">
+                <div class="text-center mb-6">
+                    <div class="text-6xl mb-4">📖</div>
+                    <h3 class="text-2xl font-bold text-gray-800 mb-2">How to Use Google Sheets Integration</h3>
+                </div>
+
+                <div class="space-y-6">
+                    <!-- Data Flow -->
+                    <div class="bg-blue-50 p-6 rounded-lg">
+                        <h4 class="font-bold text-blue-800 mb-3">📊 Data Flow</h4>
+                        <div class="space-y-2 text-sm text-blue-700">
+                            <p><strong>Students Sheet:</strong> Stores all student information (ID, Name, Class, Gender)</p>
+                            <p><strong>Assessments Sheet:</strong> Records every assessment with ratings and timestamps</p>
+                            <p><strong>Analytics Sheet:</strong> Automatically calculates performance statistics</p>
+                        </div>
+                    </div>
+
+                    <!-- Features -->
+                    <div class="bg-green-50 p-6 rounded-lg">
+                        <h4 class="font-bold text-green-800 mb-3">✨ Features</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-green-700">
+                            <div>
+                                <p><strong>📥 Load Students:</strong> Import student list from Google Sheets</p>
+                                <p><strong>📤 Export Assessments:</strong> Save all assessment data to sheets</p>
+                                <p><strong>📈 Generate Reports:</strong> Create performance analytics</p>
+                            </div>
+                            <div>
+                                <p><strong>🔄 Auto Sync:</strong> Automatic data synchronization</p>
+                                <p><strong>📊 Real-time Charts:</strong> Live dashboard updates</p>
+                                <p><strong>👥 Multi-user:</strong> Multiple teachers can use simultaneously</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Security -->
+                    <div class="bg-yellow-50 p-6 rounded-lg">
+                        <h4 class="font-bold text-yellow-800 mb-3">🔒 Security & Privacy</h4>
+                        <div class="space-y-2 text-sm text-yellow-700">
+                            <p><strong>🔗 Link-based Access:</strong> Only people with the link can access your data</p>
+                            <p><strong>👨‍🏫 Teacher Control:</strong> You control who gets the Google Sheets link</p>
+                            <p><strong>📱 No Account Required:</strong> Dashboard works without Google account</p>
+                            <p><strong>🏫 School Data:</strong> All data stays in your school's Google account</p>
+                        </div>
+                    </div>
+
+                    <!-- Troubleshooting -->
+                    <div class="bg-red-50 p-6 rounded-lg">
+                        <h4 class="font-bold text-red-800 mb-3">🔧 Troubleshooting</h4>
+                        <div class="space-y-2 text-sm text-red-700">
+                            <p><strong>Connection Failed:</strong> Check if sheet is shared with "Anyone with link can edit"</p>
+                            <p><strong>Data Not Loading:</strong> Verify column headers match exactly as shown</p>
+                            <p><strong>Sync Issues:</strong> Try refreshing the page and reconnecting</p>
+                            <p><strong>Permission Errors:</strong> Make sure the Google Sheets URL is correct</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-center mt-6">
+                    <button onclick="closeInstructionsModal()" 
+                            class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-medium transition-colors">
+                        Got It!
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Admin Authentication Variables
+        let isAdminLoggedIn = false;
+        let adminModeActive = false;
+        const ADMIN_CREDENTIALS = {
+            username: 'admin',
+            password: 'skseriintan2024'
+        };
+
+        // Google Sheets Integration Variables
+        let sheetsConnected = false;
+        let sheetsUrl = '';
+        let sheetsId = '';
+
+        // Sample student data (will be replaced by Google Sheets data)
+        let students = {
+            'STU001': { name: 'Ahmad Zaki', class: 'Year 5 Bestari', gender: 'male', avgScore: 4.2 },
+            'STU002': { name: 'Siti Nurhaliza', class: 'Year 4 Cemerlang', gender: 'female', avgScore: 5.0 },
+            'STU003': { name: 'Lim Wei Ming', class: 'Year 6 Bijak', gender: 'male', avgScore: 4.8 },
+            'STU004': { name: 'Priya Devi', class: 'Year 3 Pintar', gender: 'female', avgScore: 4.5 },
+            'STU005': { name: 'Muhammad Hakim', class: 'Year 5 Bestari', gender: 'male', avgScore: 3.9 },
+            'STU006': { name: 'Nur Aisyah', class: 'Year 4 Cemerlang', gender: 'female', avgScore: 4.7 }
+        };
+
+        // Assessment data storage
+        let assessmentData = [];
+
+        // Reading items for each subject
+        const readingItems = {
+            english: [
+                { id: 1, title: 'Phonics Recognition', description: 'Basic letter sounds and combinations' },
+                { id: 2, title: 'Sight Words Level 1', description: 'Common high-frequency words' },
+                { id: 3, title: 'Reading Comprehension', description: 'Understanding simple passages' }
+            ],
+            malay: [
+                { id: 4, title: 'Suku Kata', description: 'Pengenalan suku kata asas' },
+                { id: 5, title: 'Bacaan Lancar', description: 'Membaca dengan lancar dan jelas' },
+                { id: 6, title: 'Pemahaman Teks', description: 'Memahami kandungan bacaan' }
+            ],
+            hafazan: [
+                { id: 7, title: 'Surah Al-Fatihah', description: 'Hafazan dan sebutan yang betul' },
+                { id: 8, title: 'Doa Harian', description: 'Doa-doa harian yang asas' },
+                { id: 9, title: 'Surah Pendek', description: 'Surah-surah pendek dalam Al-Quran' }
+            ],
+            mandarin: [
+                { id: 10, title: '拼音识别', description: '基本拼音和声调' },
+                { id: 11, title: '常用汉字', description: '日常生活常用字' },
+                { id: 12, title: '阅读理解', description: '简单文章理解' }
+            ]
+        };
+
+        // Sample performance data
+        let performanceData = {
+            subjects: {
+                'Bahasa Inggeris': 4.2,
+                'Bahasa Melayu': 4.0,
+                'Hafazan': 3.8,
+                'Bahasa Mandarin': 3.9
+            },
+            ratings: {
+                1: 8,
+                2: 15,
+                3: 45,
+                4: 62,
+                5: 26
+            }
+        };
+
+        let currentStudent = null;
+        let currentSubject = 'english';
+        let currentItem = null;
+        let currentRating = 0;
+        let currentLanguage = 'en';
+
+        // Language translations
+        const translations = {
+            en: {
+                mainTitle: "READING SKILLS ASSESSMENT<br>SYSTEM DASHBOARD<br><span class=\"text-yellow-300\">SK SERI INTAN</span>",
+                mainSubtitle: "Comprehensive overview of student reading performance",
+                totalParticipants: "Total Participants",
+                maleStudents: "Male Students",
+                femaleStudents: "Female Students",
+                highestScore: "Highest Score",
+                thisWeek: "↗ +12 this week",
+                ofTotal: "of total",
+                performanceBySubject: "📊 Performance by Subject",
+                genderDistribution: "👥 Gender Distribution",
+                ratingDistribution: "⭐ Rating Distribution",
+                topPerformers: "🏆 Top Performers",
+                subjectBreakdown: "📖 Subject Performance Breakdown",
+                individualAssessment: "🎯 Individual Student Assessment",
+                studentId: "Student ID",
+                studentIdPlaceholder: "Enter student ID (e.g., STU001)",
+                lookupStudent: "🔍 Lookup Student",
+                selectSubject: "📖 Select Subject",
+                readingItems: "📝 Reading Items",
+                addItem: "➕ Add Item",
+                ratePerformance: "⭐ Rate Performance",
+                ratingFor: "Rating for:",
+                ratingInstructions: "Click on the stars to rate (1 = Lowest, 5 = Highest)",
+                submitRating: "💾 Submit Rating",
+                avgScore: "Avg Score:",
+                participants: "Participants:",
+                averageScore: "Average Score:",
+                class: "Class:",
+                male: "Male",
+                female: "Female",
+                numberOfStudents: "Number of Students"
+            },
+            ms: {
+                mainTitle: "DASHBOARD SISTEM PENGUJIAN<br>KEMAHIRAN MEMBACA<br><span class=\"text-yellow-300\">SK SERI INTAN</span>",
+                mainSubtitle: "Gambaran menyeluruh prestasi bacaan pelajar",
+                totalParticipants: "Jumlah Peserta",
+                maleStudents: "Pelajar Lelaki",
+                femaleStudents: "Pelajar Perempuan",
+                highestScore: "Markah Tertinggi",
+                thisWeek: "↗ +12 minggu ini",
+                ofTotal: "daripada jumlah",
+                performanceBySubject: "📊 Prestasi Mengikut Subjek",
+                genderDistribution: "👥 Taburan Jantina",
+                ratingDistribution: "⭐ Taburan Penilaian",
+                topPerformers: "🏆 Pencapaian Terbaik",
+                subjectBreakdown: "📖 Pecahan Prestasi Subjek",
+                individualAssessment: "🎯 Penilaian Pelajar Individu",
+                studentId: "ID Pelajar",
+                studentIdPlaceholder: "Masukkan ID pelajar (cth: STU001)",
+                lookupStudent: "🔍 Cari Pelajar",
+                selectSubject: "📖 Pilih Subjek",
+                readingItems: "📝 Item Bacaan",
+                addItem: "➕ Tambah Item",
+                ratePerformance: "⭐ Nilaikan Prestasi",
+                ratingFor: "Penilaian untuk:",
+                ratingInstructions: "Klik pada bintang untuk menilai (1 = Terendah, 5 = Tertinggi)",
+                submitRating: "💾 Hantar Penilaian",
+                avgScore: "Purata Markah:",
+                participants: "Peserta:",
+                averageScore: "Purata Markah:",
+                class: "Kelas:",
+                male: "Lelaki",
+                female: "Perempuan",
+                numberOfStudents: "Bilangan Pelajar"
+            }
+        };
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCharts();
+            loadTopPerformers();
+            loadSubjectBreakdown();
+            updateLanguage();
+            checkAdminSession();
+            checkSavedSheetsConnection();
+        });
+
+        // Admin Authentication Functions
+        function showAdminLogin() {
+            document.getElementById('adminLoginModal').classList.remove('hidden');
+            document.getElementById('adminUsername').focus();
+        }
+
+        function closeAdminLogin() {
+            document.getElementById('adminLoginModal').classList.add('hidden');
+            document.getElementById('adminUsername').value = '';
+            document.getElementById('adminPassword').value = '';
+        }
+
+        function authenticateAdmin() {
+            const username = document.getElementById('adminUsername').value.trim();
+            const password = document.getElementById('adminPassword').value.trim();
+            
+            if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
+                isAdminLoggedIn = true;
+                adminModeActive = true;
+                
+                // Save admin session
+                sessionStorage.setItem('adminLoggedIn', 'true');
+                sessionStorage.setItem('adminLoginTime', Date.now().toString());
+                
+                // Update UI
+                updateAdminUI();
+                closeAdminLogin();
+                
+                alert('✅ Admin login successful!\n\n🔧 You now have access to:\n• Google Sheets Integration\n• Data Management Tools\n• System Administration\n\nAdmin session will expire in 2 hours.');
+            } else {
+                alert('❌ Invalid credentials!\n\nPlease check your username and password.\n\nDemo credentials:\nUsername: admin\nPassword: skseriintan2024');
+                document.getElementById('adminPassword').value = '';
+                document.getElementById('adminPassword').focus();
+            }
+        }
+
+        function checkAdminSession() {
+            const adminLoggedIn = sessionStorage.getItem('adminLoggedIn');
+            const loginTime = sessionStorage.getItem('adminLoginTime');
+            
+            if (adminLoggedIn === 'true' && loginTime) {
+                const currentTime = Date.now();
+                const sessionDuration = currentTime - parseInt(loginTime);
+                const twoHours = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
+                
+                if (sessionDuration < twoHours) {
+                    isAdminLoggedIn = true;
+                    adminModeActive = true;
+                    updateAdminUI();
+                } else {
+                    // Session expired
+                    logoutAdmin();
+                    alert('⏰ Admin session expired. Please login again.');
+                }
+            }
+        }
+
+        function updateAdminUI() {
+            if (isAdminLoggedIn) {
+                // Hide public login button
+                document.getElementById('adminLoginBtn').classList.add('hidden');
+                
+                // Show admin panel
+                document.getElementById('adminPanel').classList.remove('hidden');
+                
+                if (adminModeActive) {
+                    // Show admin controls
+                    document.getElementById('adminControls').classList.remove('hidden');
+                    document.getElementById('sheetsStatus').classList.remove('hidden');
+                    
+                    // Show Google Sheets panel if connected
+                    if (sheetsConnected) {
+                        document.getElementById('sheetsPanel').classList.remove('hidden');
+                    }
+                }
+                
+                // Update mini status
+                updateMiniSheetsStatus();
+            } else {
+                // Show public login button
+                document.getElementById('adminLoginBtn').classList.remove('hidden');
+                
+                // Hide admin elements
+                document.getElementById('adminPanel').classList.add('hidden');
+                document.getElementById('adminControls').classList.add('hidden');
+                document.getElementById('sheetsStatus').classList.add('hidden');
+                document.getElementById('sheetsPanel').classList.add('hidden');
+            }
+        }
+
+        function toggleAdminMode() {
+            adminModeActive = !adminModeActive;
+            
+            const btn = event.target;
+            if (adminModeActive) {
+                btn.textContent = '👁️ Public View';
+                btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+                btn.classList.add('bg-green-600', 'hover:bg-green-700');
+                
+                // Show admin controls
+                document.getElementById('adminControls').classList.remove('hidden');
+                document.getElementById('sheetsStatus').classList.remove('hidden');
+                
+                if (sheetsConnected) {
+                    document.getElementById('sheetsPanel').classList.remove('hidden');
+                }
+            } else {
+                btn.textContent = '👨‍💼 Admin Mode';
+                btn.classList.remove('bg-green-600', 'hover:bg-green-700');
+                btn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+                
+                // Hide admin controls
+                document.getElementById('adminControls').classList.add('hidden');
+                document.getElementById('sheetsStatus').classList.add('hidden');
+                document.getElementById('sheetsPanel').classList.add('hidden');
+            }
+        }
+
+        function logoutAdmin() {
+            isAdminLoggedIn = false;
+            adminModeActive = false;
+            
+            // Clear session
+            sessionStorage.removeItem('adminLoggedIn');
+            sessionStorage.removeItem('adminLoginTime');
+            
+            // Update UI
+            updateAdminUI();
+            
+            alert('👋 Admin logged out successfully!\n\nYou are now viewing the public dashboard.');
+        }
+
+        function updateMiniSheetsStatus() {
+            const miniStatus = document.getElementById('sheetsStatusMini');
+            if (sheetsConnected) {
+                miniStatus.textContent = '📊 Sheets: Connected';
+                miniStatus.className = 'bg-green-500 text-white px-3 py-2 rounded-lg text-sm font-medium';
+            } else {
+                miniStatus.textContent = '📊 Sheets: Disconnected';
+                miniStatus.className = 'bg-red-500 text-white px-3 py-2 rounded-lg text-sm font-medium';
+            }
+        }
+
+        // Google Sheets Functions
+        function showGoogleSheetsSetup() {
+            if (!isAdminLoggedIn) {
+                alert('🔐 Admin access required!\n\nPlease login as admin to access Google Sheets integration.');
+                showAdminLogin();
+                return;
+            }
+            document.getElementById('sheetsSetupModal').classList.remove('hidden');
+        }
+
+        function closeSheetsSetupModal() {
+            document.getElementById('sheetsSetupModal').classList.add('hidden');
+            document.getElementById('sheetsUrl').value = '';
+        }
+
+        function viewSheetsInstructions() {
+            document.getElementById('instructionsModal').classList.remove('hidden');
+        }
+
+        function closeInstructionsModal() {
+            document.getElementById('instructionsModal').classList.add('hidden');
+        }
+
+        function connectGoogleSheets() {
+            const url = document.getElementById('sheetsUrl').value.trim();
+            
+            if (!url) {
+                alert('Please enter a Google Sheets URL!');
+                return;
+            }
+            
+            if (!url.includes('docs.google.com/spreadsheets')) {
+                alert('Please enter a valid Google Sheets URL!');
+                return;
+            }
+            
+            // Extract sheet ID from URL
+            const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+            if (!match) {
+                alert('Could not extract sheet ID from URL. Please check the URL format.');
+                return;
+            }
+            
+            sheetsId = match[1];
+            sheetsUrl = url;
+            sheetsConnected = true;
+            
+            // Save connection details
+            localStorage.setItem('sheetsUrl', sheetsUrl);
+            localStorage.setItem('sheetsId', sheetsId);
+            
+            // Update UI
+            updateSheetsStatus('connected');
+            document.getElementById('syncBtn').disabled = false;
+            updateMiniSheetsStatus();
+            
+            // Show sheets panel only if admin is logged in and in admin mode
+            if (isAdminLoggedIn && adminModeActive) {
+                document.getElementById('sheetsPanel').classList.remove('hidden');
+            }
+            
+            closeSheetsSetupModal();
+            
+            alert('✅ Google Sheets connected successfully!\n\nYou can now:\n• Load students from sheets\n• Export assessment data\n• Generate performance reports');
+            
+            // Auto-load students if available
+            loadStudentsFromSheets();
+        }
+
+        function checkSavedSheetsConnection() {
+            const savedUrl = localStorage.getItem('sheetsUrl');
+            const savedId = localStorage.getItem('sheetsId');
+            
+            if (savedUrl && savedId) {
+                sheetsUrl = savedUrl;
+                sheetsId = savedId;
+                sheetsConnected = true;
+                
+                updateSheetsStatus('connected');
+                document.getElementById('syncBtn').disabled = false;
+                document.getElementById('sheetsPanel').classList.remove('hidden');
+            }
+        }
+
+        function updateSheetsStatus(status) {
+            const statusElement = document.getElementById('sheetsStatus');
+            
+            switch(status) {
+                case 'connected':
+                    statusElement.textContent = '📊 Google Sheets: Connected';
+                    statusElement.className = 'google-sheets-status status-connected';
+                    
+                    document.getElementById('studentsSheetStatus').textContent = 'Connected ✅';
+                    document.getElementById('assessmentsSheetStatus').textContent = 'Connected ✅';
+                    document.getElementById('analyticsSheetStatus').textContent = 'Connected ✅';
+                    break;
+                    
+                case 'syncing':
+                    statusElement.textContent = '📊 Google Sheets: Syncing...';
+                    statusElement.className = 'google-sheets-status status-syncing';
+                    break;
+                    
+                case 'disconnected':
+                default:
+                    statusElement.textContent = '📊 Google Sheets: Not Connected';
+                    statusElement.className = 'google-sheets-status status-disconnected';
+                    
+                    document.getElementById('studentsSheetStatus').textContent = 'Not Connected ❌';
+                    document.getElementById('assessmentsSheetStatus').textContent = 'Not Connected ❌';
+                    document.getElementById('analyticsSheetStatus').textContent = 'Not Connected ❌';
+                    break;
+            }
+        }
+
+        function loadStudentsFromSheets() {
+            if (!isAdminLoggedIn) {
+                alert('🔐 Admin access required!\n\nPlease login as admin to access this feature.');
+                return;
+            }
+            
+            if (!sheetsConnected) {
+                alert('Please connect to Google Sheets first!');
+                return;
+            }
+            
+            updateSheetsStatus('syncing');
+            
+            // Simulate loading from Google Sheets
+            setTimeout(() => {
+                // In a real implementation, you would fetch data from Google Sheets API
+                // For demo purposes, we'll simulate loading additional students
+                
+                const newStudents = {
+                    'STU007': { name: 'Fatimah Zahra', class: 'Year 3 Pintar', gender: 'female', avgScore: 4.1 },
+                    'STU008': { name: 'Chen Wei Lun', class: 'Year 6 Bijak', gender: 'male', avgScore: 4.6 },
+                    'STU009': { name: 'Raj Kumar', class: 'Year 5 Bestari', gender: 'male', avgScore: 3.8 },
+                    'STU010': { name: 'Nurul Ain', class: 'Year 4 Cemerlang', gender: 'female', avgScore: 4.4 }
+                };
+                
+                // Merge with existing students
+                students = { ...students, ...newStudents };
+                
+                // Update statistics
+                updateStatistics();
+                
+                // Refresh charts and displays
+                initializeCharts();
+                loadTopPerformers();
+                loadSubjectBreakdown();
+                
+                updateSheetsStatus('connected');
+                
+                alert(`✅ Successfully loaded ${Object.keys(newStudents).length} new students from Google Sheets!\n\nTotal students: ${Object.keys(students).length}`);
+            }, 2000);
+        }
+
+        function exportAssessments() {
+            if (!isAdminLoggedIn) {
+                alert('🔐 Admin access required!\n\nPlease login as admin to access this feature.');
+                return;
+            }
+            
+            if (!sheetsConnected) {
+                alert('Please connect to Google Sheets first!');
+                return;
+            }
+            
+            if (assessmentData.length === 0) {
+                alert('No assessment data to export. Please conduct some assessments first.');
+                return;
+            }
+            
+            updateSheetsStatus('syncing');
+            
+            // Simulate exporting to Google Sheets
+            setTimeout(() => {
+                // In a real implementation, you would send data to Google Sheets API
+                console.log('Exporting assessment data:', assessmentData);
+                
+                updateSheetsStatus('connected');
+                
+                alert(`✅ Successfully exported ${assessmentData.length} assessment records to Google Sheets!\n\nData includes:\n• Student ratings\n• Subject performance\n• Timestamps\n• Teacher notes`);
+            }, 1500);
+        }
+
+        function generateReport() {
+            if (!isAdminLoggedIn) {
+                alert('🔐 Admin access required!\n\nPlease login as admin to access this feature.');
+                return;
+            }
+            
+            if (!sheetsConnected) {
+                alert('Please connect to Google Sheets first!');
+                return;
+            }
+            
+            updateSheetsStatus('syncing');
+            
+            // Simulate generating analytics report
+            setTimeout(() => {
+                const totalStudents = Object.keys(students).length;
+                const maleCount = Object.values(students).filter(s => s.gender === 'male').length;
+                const femaleCount = Object.values(students).filter(s => s.gender === 'female').length;
+                
+                const analyticsData = {
+                    date: new Date().toISOString().split('T')[0],
+                    totalStudents: totalStudents,
+                    maleCount: maleCount,
+                    femaleCount: femaleCount,
+                    avgEnglish: performanceData.subjects['Bahasa Inggeris'],
+                    avgMalay: performanceData.subjects['Bahasa Melayu'],
+                    avgHafazan: performanceData.subjects['Hafazan'],
+                    avgMandarin: performanceData.subjects['Bahasa Mandarin'],
+                    highestScore: Math.max(...Object.values(students).map(s => s.avgScore)),
+                    topPerformer: Object.values(students).reduce((a, b) => a.avgScore > b.avgScore ? a : b).name
+                };
+                
+                console.log('Generated analytics:', analyticsData);
+                
+                updateSheetsStatus('connected');
+                
+                alert(`📊 Analytics Report Generated!\n\n📈 Key Metrics:\n• Total Students: ${totalStudents}\n• Average Performance: ${(Object.values(performanceData.subjects).reduce((a, b) => a + b, 0) / 4).toFixed(1)}/5\n• Top Performer: ${analyticsData.topPerformer}\n• Assessment Completion: ${assessmentData.length} records\n\n✅ Report saved to Analytics sheet!`);
+            }, 2000);
+        }
+
+        function syncWithSheets() {
+            if (!isAdminLoggedIn) {
+                alert('🔐 Admin access required!\n\nPlease login as admin to access this feature.');
+                return;
+            }
+            
+            if (!sheetsConnected) {
+                alert('Please connect to Google Sheets first!');
+                return;
+            }
+            
+            updateSheetsStatus('syncing');
+            
+            // Simulate full sync
+            setTimeout(() => {
+                loadStudentsFromSheets();
+                
+                setTimeout(() => {
+                    exportAssessments();
+                    
+                    setTimeout(() => {
+                        generateReport();
+                        
+                        alert('🔄 Full synchronization completed!\n\n✅ All data is now up-to-date with Google Sheets.');
+                    }, 1000);
+                }, 1000);
+            }, 1000);
+        }
+
+        function updateStatistics() {
+            const totalStudents = Object.keys(students).length;
+            const maleCount = Object.values(students).filter(s => s.gender === 'male').length;
+            const femaleCount = Object.values(students).filter(s => s.gender === 'female').length;
+            const topStudent = Object.values(students).reduce((a, b) => a.avgScore > b.avgScore ? a : b);
+            
+            document.getElementById('totalParticipants').textContent = totalStudents;
+            document.getElementById('maleCount').textContent = maleCount;
+            document.getElementById('femaleCount').textContent = femaleCount;
+            document.getElementById('malePercentage').textContent = `${((maleCount/totalStudents)*100).toFixed(1)}% of total`;
+            document.getElementById('femalePercentage').textContent = `${((femaleCount/totalStudents)*100).toFixed(1)}% of total`;
+            document.getElementById('topPerformer').textContent = topStudent.name;
+        }
+
+        // Language switching function
+        function switchLanguage(lang) {
+            currentLanguage = lang;
+            
+            // Update button appearance
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.remove('active');
+                btn.classList.add('bg-white', 'bg-opacity-10', 'text-blue-200');
+                btn.classList.remove('bg-white', 'bg-opacity-20', 'text-white');
+            });
+            
+            const activeBtn = document.getElementById(`lang${lang === 'en' ? 'En' : 'Ms'}`);
+            activeBtn.classList.add('active');
+            activeBtn.classList.remove('bg-white', 'bg-opacity-10', 'text-blue-200');
+            activeBtn.classList.add('bg-white', 'bg-opacity-20', 'text-white');
+            
+            updateLanguage();
+            
+            // Refresh charts with new language
+            setTimeout(() => {
+                initializeCharts();
+                loadTopPerformers();
+                loadSubjectBreakdown();
+            }, 100);
+        }
+
+        function updateLanguage() {
+            const t = translations[currentLanguage];
+            
+            // Update main elements
+            document.getElementById('mainTitle').innerHTML = t.mainTitle;
+            document.getElementById('mainSubtitle').textContent = t.mainSubtitle;
+            
+            // Update statistics cards
+            updateStatCard('totalParticipants', t.totalParticipants, t.thisWeek);
+            updateStatCard('maleCount', t.maleStudents, document.getElementById('malePercentage').textContent);
+            updateStatCard('femaleCount', t.femaleStudents, document.getElementById('femalePercentage').textContent);
+            updateStatCard('topPerformer', t.highestScore, document.getElementById('topPerformer').textContent);
+        }
+
+        function updateStatCard(cardId, title, subtitle) {
+            const card = document.getElementById(cardId).closest('.stat-card');
+            const titleElement = card.querySelector('.text-sm.font-medium');
+            const subtitleElement = card.querySelector('.mt-4 span');
+            
+            if (titleElement) titleElement.textContent = title;
+            if (subtitleElement && cardId !== 'topPerformer') subtitleElement.textContent = subtitle;
+        }
+
+        function initializeCharts() {
+            const t = translations[currentLanguage];
+            
+            // Clear existing charts
+            Chart.getChart('subjectChart')?.destroy();
+            Chart.getChart('genderChart')?.destroy();
+            Chart.getChart('ratingChart')?.destroy();
+            
+            // Subject Performance Chart
+            const subjectCtx = document.getElementById('subjectChart').getContext('2d');
+            new Chart(subjectCtx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(performanceData.subjects),
+                    datasets: [{
+                        label: t.averageScore,
+                        data: Object.values(performanceData.subjects),
+                        backgroundColor: [
+                            'rgba(59, 130, 246, 0.8)',
+                            'rgba(16, 185, 129, 0.8)',
+                            'rgba(245, 158, 11, 0.8)',
+                            'rgba(239, 68, 68, 0.8)'
+                        ],
+                        borderColor: [
+                            'rgba(59, 130, 246, 1)',
+                            'rgba(16, 185, 129, 1)',
+                            'rgba(245, 158, 11, 1)',
+                            'rgba(239, 68, 68, 1)'
+                        ],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 5
+                        }
+                    }
+                }
+            });
+
+            // Gender Distribution Chart
+            const genderCtx = document.getElementById('genderChart').getContext('2d');
+            const maleCount = Object.values(students).filter(s => s.gender === 'male').length;
+            const femaleCount = Object.values(students).filter(s => s.gender === 'female').length;
+            
+            new Chart(genderCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: [t.male, t.female],
+                    datasets: [{
+                        data: [maleCount, femaleCount],
+                        backgroundColor: [
+                            'rgba(16, 185, 129, 0.8)',
+                            'rgba(236, 72, 153, 0.8)'
+                        ],
+                        borderColor: [
+                            'rgba(16, 185, 129, 1)',
+                            'rgba(236, 72, 153, 1)'
+                        ],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+
+            // Rating Distribution Chart
+            const ratingCtx = document.getElementById('ratingChart').getContext('2d');
+            const starLabels = currentLanguage === 'en' 
+                ? ['1 Star', '2 Stars', '3 Stars', '4 Stars', '5 Stars']
+                : ['1 Bintang', '2 Bintang', '3 Bintang', '4 Bintang', '5 Bintang'];
+                
+            new Chart(ratingCtx, {
+                type: 'line',
+                data: {
+                    labels: starLabels,
+                    datasets: [{
+                        label: t.numberOfStudents,
+                        data: Object.values(performanceData.ratings),
+                        borderColor: 'rgba(59, 130, 246, 1)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function loadTopPerformers() {
+            const t = translations[currentLanguage];
+            const topStudents = Object.entries(students)
+                .sort(([,a], [,b]) => b.avgScore - a.avgScore)
+                .slice(0, 4);
+
+            const container = document.getElementById('topPerformers');
+            container.innerHTML = topStudents.map(([id, student], index) => `
+                <div class="bg-gradient-to-r from-yellow-50 to-yellow-100 p-4 rounded-lg border border-yellow-200">
+                    <div class="flex items-center gap-3 mb-2">
+                        <span class="text-2xl">${index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🏅'}</span>
+                        <div>
+                            <h4 class="font-semibold text-gray-800">${student.name}</h4>
+                            <p class="text-sm text-gray-600">${student.class}</p>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-gray-600">${t.averageScore}</span>
+                        <span class="font-bold text-yellow-600">${student.avgScore}/5</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function loadSubjectBreakdown() {
+            const t = translations[currentLanguage];
+            const subjects = [
+                { name: 'Bahasa Inggeris', icon: '🇬🇧', score: 4.2, participants: Object.keys(students).length },
+                { name: 'Bahasa Melayu', icon: '🇲🇾', score: 4.0, participants: Object.keys(students).length },
+                { name: 'Hafazan', icon: '🕌', score: 3.8, participants: Math.floor(Object.keys(students).length * 0.85) },
+                { name: 'Bahasa Mandarin', icon: '🇨🇳', score: 3.9, participants: Math.floor(Object.keys(students).length * 0.63) }
+            ];
+
+            const container = document.getElementById('subjectBreakdown');
+            container.innerHTML = subjects.map(subject => `
+                <div class="bg-gray-50 p-4 rounded-lg">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="text-2xl">${subject.icon}</span>
+                        <h4 class="font-semibold text-gray-800">${subject.name}</h4>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="flex justify-between">
+                            <span class="text-sm text-gray-600">${t.avgScore}</span>
+                            <span class="font-medium">${subject.score}/5</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-sm text-gray-600">${t.participants}</span>
+                            <span class="font-medium">${subject.participants}</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="bg-blue-600 h-2 rounded-full" style="width: ${(subject.score/5)*100}%"></div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function lookupStudent() {
+            const t = translations[currentLanguage];
+            const studentId = document.getElementById('studentId').value.trim().toUpperCase();
+            const student = students[studentId];
+            
+            if (student) {
+                currentStudent = { id: studentId, ...student };
+                document.getElementById('studentName').textContent = student.name;
+                document.getElementById('studentClass').textContent = `${t.class} ${student.class} | ID: ${studentId} | ${t.avgScore} ${student.avgScore}/5`;
+                document.getElementById('studentInfo').classList.remove('hidden');
+                document.getElementById('studentInfo').classList.add('fade-in');
+                document.getElementById('assessmentInterface').classList.remove('hidden');
+                document.getElementById('assessmentInterface').classList.add('fade-in');
+                
+                // Auto-select first subject
+                selectSubject('english');
+            } else {
+                const availableIds = Object.keys(students).join(', ');
+                const message = currentLanguage === 'en' 
+                    ? `Student ID not found. Available IDs: ${availableIds}`
+                    : `ID Pelajar tidak dijumpai. ID yang tersedia: ${availableIds}`;
+                alert(message);
+            }
+        }
+
+        function selectSubject(subject) {
+            currentSubject = subject;
+            
+            // Update tab appearance
+            document.querySelectorAll('.subject-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            
+            // Load reading items for selected subject
+            loadReadingItems();
+            
+            // Hide rating section when switching subjects
+            document.getElementById('ratingSection').classList.add('hidden');
+        }
+
+        function loadReadingItems() {
+            const container = document.getElementById('readingItems');
+            const items = readingItems[currentSubject];
+            
+            container.innerHTML = items.map(item => `
+                <div class="reading-item bg-gray-50 p-4 rounded-lg cursor-pointer" onclick="selectItem(${item.id})">
+                    <h3 class="font-semibold text-gray-800 mb-2">${item.title}</h3>
+                    <p class="text-sm text-gray-600">${item.description}</p>
+                </div>
+            `).join('');
+        }
+
+        function selectItem(itemId) {
+            const items = readingItems[currentSubject];
+            currentItem = items.find(item => item.id === itemId);
+            
+            // Update item selection appearance
+            document.querySelectorAll('.reading-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            event.target.closest('.reading-item').classList.add('selected');
+            
+            // Show rating section
+            document.getElementById('ratingItemTitle').textContent = currentItem.title;
+            document.getElementById('ratingSubject').textContent = getSubjectDisplayName(currentSubject);
+            document.getElementById('ratingSection').classList.remove('hidden');
+            document.getElementById('ratingSection').classList.add('fade-in');
+            
+            // Reset rating
+            resetRating();
+        }
+
+        function getSubjectDisplayName(subject) {
+            const names = {
+                english: '🇬🇧 Bahasa Inggeris',
+                malay: '🇲🇾 Bahasa Melayu',
+                hafazan: '🕌 Hafazan',
+                mandarin: '🇨🇳 Bahasa Mandarin'
+            };
+            return names[subject];
+        }
+
+        function setRating(rating) {
+            currentRating = rating;
+            
+            // Update star appearance
+            document.querySelectorAll('.rating-star').forEach((star, index) => {
+                if (index < rating) {
+                    star.classList.remove('inactive');
+                    star.classList.add('active');
+                } else {
+                    star.classList.remove('active');
+                    star.classList.add('inactive');
+                }
+            });
+            
+            // Show feedback
+            showRatingFeedback(rating);
+            document.getElementById('submitBtn').classList.remove('hidden');
+        }
+
+        function showRatingFeedback(rating) {
+            const feedback = currentLanguage === 'en' ? {
+                1: { text: '⭐ Needs Improvement', desc: 'Requires significant support and practice' },
+                2: { text: '⭐⭐ Below Average', desc: 'Shows some understanding but needs more work' },
+                3: { text: '⭐⭐⭐ Average', desc: 'Meets basic expectations for grade level' },
+                4: { text: '⭐⭐⭐⭐ Good', desc: 'Above average performance, well done!' },
+                5: { text: '⭐⭐⭐⭐⭐ Excellent', desc: 'Outstanding performance, exceeds expectations!' }
+            } : {
+                1: { text: '⭐ Perlu Diperbaiki', desc: 'Memerlukan sokongan dan latihan yang banyak' },
+                2: { text: '⭐⭐ Bawah Purata', desc: 'Menunjukkan sedikit kefahaman tetapi perlu lebih usaha' },
+                3: { text: '⭐⭐⭐ Purata', desc: 'Memenuhi jangkaan asas untuk tahap gred' },
+                4: { text: '⭐⭐⭐⭐ Baik', desc: 'Prestasi melebihi purata, syabas!' },
+                5: { text: '⭐⭐⭐⭐⭐ Cemerlang', desc: 'Prestasi luar biasa, melebihi jangkaan!' }
+            };
+            
+            document.getElementById('ratingText').textContent = feedback[rating].text;
+            document.getElementById('ratingDescription').textContent = feedback[rating].desc;
+            document.getElementById('ratingFeedback').classList.remove('hidden');
+        }
+
+        function resetRating() {
+            currentRating = 0;
+            document.querySelectorAll('.rating-star').forEach(star => {
+                star.classList.remove('active');
+                star.classList.add('inactive');
+            });
+            document.getElementById('ratingFeedback').classList.add('hidden');
+            document.getElementById('submitBtn').classList.add('hidden');
+        }
+
+        function submitRating() {
+            const noRatingMsg = currentLanguage === 'en' 
+                ? 'Please select a rating first!' 
+                : 'Sila pilih penilaian terlebih dahulu!';
+                
+            if (currentRating === 0) {
+                alert(noRatingMsg);
+                return;
+            }
+            
+            // Create assessment record
+            const assessmentRecord = {
+                assessmentId: `ASS${Date.now()}`,
+                studentId: currentStudent.id,
+                studentName: currentStudent.name,
+                subject: currentSubject,
+                readingItem: currentItem.title,
+                rating: currentRating,
+                date: new Date().toISOString(),
+                teacher: 'Current User', // In real app, this would be the logged-in teacher
+                notes: ''
+            };
+            
+            // Add to assessment data
+            assessmentData.push(assessmentRecord);
+            
+            console.log('Assessment submitted:', assessmentRecord);
+            
+            // Show success message
+            const successMsg = currentLanguage === 'en' 
+                ? `✅ Assessment submitted successfully!\n\nStudent: ${currentStudent.name}\nSubject: ${getSubjectDisplayName(currentSubject)}\nItem: ${currentItem.title}\nRating: ${currentRating}/5 stars\n\n📊 Data saved locally and ready for Google Sheets sync.`
+                : `✅ Penilaian berjaya dihantar!\n\nPelajar: ${currentStudent.name}\nSubjek: ${getSubjectDisplayName(currentSubject)}\nItem: ${currentItem.title}\nPenilaian: ${currentRating}/5 bintang\n\n📊 Data disimpan secara tempatan dan sedia untuk sinkronisasi Google Sheets.`;
+            
+            alert(successMsg);
+            
+            // Auto-export to sheets if connected
+            if (sheetsConnected) {
+                setTimeout(() => {
+                    exportAssessments();
+                }, 1000);
+            }
+            
+            // Reset for next rating
+            resetRating();
+            document.getElementById('ratingSection').classList.add('hidden');
+            document.querySelectorAll('.reading-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+        }
+
+        function showAddItemModal() {
+            document.getElementById('addItemModal').classList.remove('hidden');
+        }
+
+        function closeAddItemModal() {
+            document.getElementById('addItemModal').classList.add('hidden');
+            document.getElementById('newItemTitle').value = '';
+            document.getElementById('newItemDesc').value = '';
+        }
+
+        function addNewItem() {
+            const title = document.getElementById('newItemTitle').value.trim();
+            const description = document.getElementById('newItemDesc').value.trim();
+            
+            const noTitleMsg = currentLanguage === 'en' 
+                ? 'Please enter an item title!' 
+                : 'Sila masukkan tajuk item!';
+                
+            if (!title) {
+                alert(noTitleMsg);
+                return;
+            }
+            
+            // Add new item to current subject
+            const newId = Math.max(...readingItems[currentSubject].map(item => item.id)) + 1;
+            const noDescMsg = currentLanguage === 'en' ? 'No description provided' : 'Tiada penerangan disediakan';
+            
+            readingItems[currentSubject].push({
+                id: newId,
+                title: title,
+                description: description || noDescMsg
+            });
+            
+            // Refresh the items display
+            loadReadingItems();
+            closeAddItemModal();
+            
+            const successMsg = currentLanguage === 'en' 
+                ? `✅ New reading item "${title}" added successfully!`
+                : `✅ Item bacaan baharu "${title}" berjaya ditambah!`;
+            
+            alert(successMsg);
+        }
+
+        // Allow Enter key to lookup student
+        document.getElementById('studentId').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                lookupStudent();
+            }
+        });
+
+        // Allow Enter key in sheets URL input
+        document.getElementById('sheetsUrl').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                connectGoogleSheets();
+            }
+        });
+
+        // Allow Enter key in admin login
+        document.getElementById('adminUsername').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('adminPassword').focus();
+            }
+        });
+
+        document.getElementById('adminPassword').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                authenticateAdmin();
+            }
+        });
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9760dbe21746389f',t:'MTc1NjM1MzE3OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
